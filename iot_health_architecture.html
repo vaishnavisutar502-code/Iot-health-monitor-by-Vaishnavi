@@ -1,0 +1,583 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>IoT Health Monitoring – System Architecture</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;600;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #050c14;
+    --card: #0a1628;
+    --border: #1a2d4a;
+    --accent1: #00e5ff;
+    --accent2: #00ff9d;
+    --accent3: #ff6b35;
+    --accent4: #a855f7;
+    --accent5: #f59e0b;
+    --text: #e2eaf5;
+    --muted: #5a7a9a;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Syne', sans-serif;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* Animated grid background */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(0,229,255,0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0,229,255,0.03) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .page { position: relative; z-index: 1; padding: 40px 20px 60px; max-width: 1300px; margin: 0 auto; }
+
+  /* Header */
+  .header { text-align: center; margin-bottom: 60px; }
+  .header .badge {
+    display: inline-block;
+    font-family: 'Space Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 3px;
+    color: var(--accent1);
+    border: 1px solid var(--accent1);
+    padding: 4px 14px;
+    margin-bottom: 16px;
+    text-transform: uppercase;
+  }
+  .header h1 {
+    font-size: clamp(28px, 5vw, 54px);
+    font-weight: 800;
+    line-height: 1.1;
+    background: linear-gradient(135deg, #fff 30%, var(--accent1));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    margin-bottom: 12px;
+  }
+  .header p {
+    color: var(--muted);
+    font-family: 'Space Mono', monospace;
+    font-size: 13px;
+  }
+
+  /* Flow arrow global */
+  .arrow-down {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    margin: 10px 0;
+    gap: 0;
+  }
+  .arrow-down .line {
+    width: 2px;
+    height: 30px;
+    background: linear-gradient(to bottom, var(--muted), var(--accent1));
+    position: relative;
+  }
+  .arrow-down .tip {
+    width: 0; height: 0;
+    border-left: 7px solid transparent;
+    border-right: 7px solid transparent;
+    border-top: 10px solid var(--accent1);
+  }
+  .arrow-label {
+    font-family: 'Space Mono', monospace;
+    font-size: 9px;
+    color: var(--accent1);
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    margin: -6px 0;
+  }
+
+  /* Layer */
+  .layer {
+    margin-bottom: 12px;
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 24px 28px;
+    background: var(--card);
+    position: relative;
+    overflow: hidden;
+    animation: fadeUp 0.6s ease both;
+  }
+  .layer::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 3px;
+  }
+  .layer.hw::before   { background: linear-gradient(90deg, var(--accent3), #ff9800); }
+  .layer.cloud::before { background: linear-gradient(90deg, var(--accent1), #006080); }
+  .layer.ml::before   { background: linear-gradient(90deg, var(--accent4), #6a00f0); }
+  .layer.app::before  { background: linear-gradient(90deg, var(--accent2), #006640); }
+  .layer.output::before { background: linear-gradient(90deg, var(--accent5), #c87800); }
+
+  .layer-header {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    margin-bottom: 20px;
+  }
+  .layer-icon {
+    width: 42px; height: 42px;
+    border-radius: 10px;
+    display: grid;
+    place-items: center;
+    font-size: 20px;
+    flex-shrink: 0;
+  }
+  .hw .layer-icon   { background: rgba(255,107,53,0.15); border: 1px solid rgba(255,107,53,0.4); }
+  .cloud .layer-icon { background: rgba(0,229,255,0.1);  border: 1px solid rgba(0,229,255,0.3); }
+  .ml .layer-icon   { background: rgba(168,85,247,0.1);  border: 1px solid rgba(168,85,247,0.4);}
+  .app .layer-icon  { background: rgba(0,255,157,0.1);   border: 1px solid rgba(0,255,157,0.3); }
+  .output .layer-icon { background: rgba(245,158,11,0.1); border: 1px solid rgba(245,158,11,0.4);}
+
+  .layer-title { font-weight: 800; font-size: 18px; }
+  .layer-num {
+    margin-left: auto;
+    font-family: 'Space Mono', monospace;
+    font-size: 11px;
+    color: var(--muted);
+    letter-spacing: 1px;
+  }
+
+  /* Cards inside layer */
+  .cards { display: flex; flex-wrap: wrap; gap: 14px; }
+  .card {
+    flex: 1;
+    min-width: 180px;
+    background: rgba(255,255,255,0.03);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px;
+    transition: transform 0.2s, border-color 0.2s;
+  }
+  .card:hover { transform: translateY(-3px); border-color: var(--muted); }
+  .card-title {
+    font-size: 13px;
+    font-weight: 600;
+    margin-bottom: 8px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .card-dot {
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+  .hw .card-dot    { background: var(--accent3); }
+  .cloud .card-dot { background: var(--accent1); }
+  .ml .card-dot    { background: var(--accent4); }
+  .app .card-dot   { background: var(--accent2); }
+  .output .card-dot{ background: var(--accent5); }
+
+  .card-desc {
+    font-family: 'Space Mono', monospace;
+    font-size: 11px;
+    color: var(--muted);
+    line-height: 1.7;
+  }
+  .tag {
+    display: inline-block;
+    font-family: 'Space Mono', monospace;
+    font-size: 10px;
+    padding: 2px 8px;
+    border-radius: 20px;
+    margin-top: 8px;
+    margin-right: 4px;
+  }
+  .tag-orange { background: rgba(255,107,53,0.15); color: var(--accent3); border: 1px solid rgba(255,107,53,0.3); }
+  .tag-cyan   { background: rgba(0,229,255,0.1);  color: var(--accent1); border: 1px solid rgba(0,229,255,0.25); }
+  .tag-purple { background: rgba(168,85,247,0.1); color: var(--accent4); border: 1px solid rgba(168,85,247,0.3); }
+  .tag-green  { background: rgba(0,255,157,0.1);  color: var(--accent2); border: 1px solid rgba(0,255,157,0.25); }
+  .tag-yellow { background: rgba(245,158,11,0.1); color: var(--accent5); border: 1px solid rgba(245,158,11,0.3); }
+
+  /* Data flow banner */
+  .flow-banner {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 8px 20px;
+    background: rgba(0,229,255,0.05);
+    border: 1px solid rgba(0,229,255,0.15);
+    border-radius: 40px;
+    margin: 4px auto;
+    width: fit-content;
+    font-family: 'Space Mono', monospace;
+    font-size: 10px;
+    color: var(--accent1);
+    letter-spacing: 1.5px;
+  }
+  .flow-dot {
+    width: 5px; height: 5px;
+    border-radius: 50%;
+    background: var(--accent1);
+    animation: pulse 1.5s infinite;
+  }
+  @keyframes pulse {
+    0%,100% { opacity: 1; transform: scale(1); }
+    50%      { opacity: 0.3; transform: scale(0.6); }
+  }
+
+  /* Full-width description block */
+  .desc-block {
+    background: rgba(255,255,255,0.025);
+    border-left: 3px solid var(--accent1);
+    border-radius: 0 8px 8px 0;
+    padding: 12px 16px;
+    margin-top: 16px;
+    font-family: 'Space Mono', monospace;
+    font-size: 11px;
+    color: var(--muted);
+    line-height: 1.8;
+  }
+
+  /* ML models comparison table */
+  .ml-table { width: 100%; border-collapse: collapse; margin-top: 14px; }
+  .ml-table th {
+    font-family: 'Space Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 2px;
+    color: var(--muted);
+    text-transform: uppercase;
+    padding: 8px 12px;
+    text-align: left;
+    border-bottom: 1px solid var(--border);
+  }
+  .ml-table td {
+    font-family: 'Space Mono', monospace;
+    font-size: 11px;
+    color: var(--text);
+    padding: 10px 12px;
+    border-bottom: 1px solid rgba(255,255,255,0.04);
+  }
+  .ml-table tr:last-child td { border-bottom: none; }
+  .ml-table tr:hover td { background: rgba(255,255,255,0.03); }
+
+  /* Streamlit component diagram */
+  .streamlit-box {
+    border: 1px solid rgba(0,255,157,0.2);
+    border-radius: 12px;
+    padding: 18px;
+    background: rgba(0,255,157,0.03);
+    margin-top: 14px;
+  }
+  .streamlit-box h4 {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--accent2);
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    margin-bottom: 14px;
+    font-family: 'Space Mono', monospace;
+  }
+  .st-row { display: flex; flex-wrap: wrap; gap: 10px; }
+  .st-comp {
+    flex: 1;
+    min-width: 130px;
+    background: rgba(0,255,157,0.06);
+    border: 1px solid rgba(0,255,157,0.15);
+    border-radius: 8px;
+    padding: 12px;
+    font-family: 'Space Mono', monospace;
+    font-size: 10px;
+    color: var(--accent2);
+    text-align: center;
+    line-height: 1.7;
+  }
+  .st-comp strong { display: block; font-size: 12px; margin-bottom: 4px; color: #fff; }
+
+  /* Pipeline flow */
+  .pipeline {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0;
+    margin-top: 14px;
+    justify-content: center;
+  }
+  .pipe-step {
+    background: rgba(0,229,255,0.07);
+    border: 1px solid rgba(0,229,255,0.2);
+    border-radius: 8px;
+    padding: 10px 14px;
+    font-family: 'Space Mono', monospace;
+    font-size: 10px;
+    color: var(--accent1);
+    text-align: center;
+    min-width: 100px;
+  }
+  .pipe-step strong { display: block; color: #fff; font-size: 11px; margin-bottom: 3px; }
+  .pipe-arrow {
+    font-size: 16px;
+    color: var(--muted);
+    padding: 0 6px;
+  }
+
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(20px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  .layer:nth-child(1) { animation-delay: 0.05s; }
+  .layer:nth-child(2) { animation-delay: 0.15s; }
+  .layer:nth-child(3) { animation-delay: 0.25s; }
+  .layer:nth-child(4) { animation-delay: 0.35s; }
+  .layer:nth-child(5) { animation-delay: 0.45s; }
+
+  @media (max-width: 600px) {
+    .cards { flex-direction: column; }
+    .pipeline { flex-direction: column; }
+    .pipe-arrow { transform: rotate(90deg); }
+  }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <!-- Header -->
+  <div class="header">
+    <div class="badge">System Architecture</div>
+    <h1>IoT Health Monitoring<br>with ML + Streamlit</h1>
+    <p>MAX30102 → Arduino Mega 2560 → ThingSpeak → Python ML → Streamlit Dashboard</p>
+  </div>
+
+  <!-- ═══════════════ LAYER 1: HARDWARE ═══════════════ -->
+  <div class="layer hw">
+    <div class="layer-header">
+      <div class="layer-icon">🔌</div>
+      <div>
+        <div class="layer-title">Layer 1 — Hardware / Sensor Layer</div>
+        <div style="font-family:'Space Mono',monospace;font-size:11px;color:var(--muted)">Physical data collection from patient</div>
+      </div>
+      <div class="layer-num">01 / 05</div>
+    </div>
+    <div class="cards">
+      <div class="card">
+        <div class="card-title"><span class="card-dot"></span>MAX30102 Sensor</div>
+        <div class="card-desc">Pulse oximeter & heart rate sensor. Measures SpO₂ (blood oxygen %) and BPM using infrared light absorption.</div>
+        <span class="tag tag-orange">SpO₂ Reading</span>
+        <span class="tag tag-orange">Heart Rate BPM</span>
+      </div>
+      <div class="card">
+        <div class="card-title"><span class="card-dot"></span>Arduino Mega 2560</div>
+        <div class="card-desc">Microcontroller that reads sensor data over I²C protocol, processes raw values, and sends data to WiFi module.</div>
+        <span class="tag tag-orange">I²C Bus</span>
+        <span class="tag tag-orange">Serial UART</span>
+      </div>
+      <div class="card">
+        <div class="card-title"><span class="card-dot"></span>ESP8266 / ESP32 WiFi</div>
+        <div class="card-desc">Connected to Arduino via Serial. Receives sensor values and performs HTTP POST to ThingSpeak API every 15–30 seconds.</div>
+        <span class="tag tag-orange">WiFi 802.11</span>
+        <span class="tag tag-orange">HTTP POST</span>
+      </div>
+    </div>
+    <div class="desc-block">
+      📡 <strong>Data Flow:</strong> MAX30102 → I²C → Arduino Mega → UART → ESP8266 → WiFi → ThingSpeak REST API
+      <br>📦 Payload: <code>{"field1": &lt;BPM&gt;, "field2": &lt;SpO2&gt;}</code> sent to ThingSpeak channel
+    </div>
+  </div>
+
+  <div class="arrow-down"><div class="line"></div><div class="arrow-label">HTTP POST (REST API)</div><div class="line"></div><div class="tip"></div></div>
+
+  <!-- ═══════════════ LAYER 2: CLOUD / THINGSPEAK ═══════════════ -->
+  <div class="layer cloud">
+    <div class="layer-header">
+      <div class="layer-icon">☁️</div>
+      <div>
+        <div class="layer-title">Layer 2 — ThingSpeak Cloud Platform</div>
+        <div style="font-family:'Space Mono',monospace;font-size:11px;color:var(--muted)">IoT data ingestion, storage & channel API</div>
+      </div>
+      <div class="layer-num">02 / 05</div>
+    </div>
+    <div class="cards">
+      <div class="card">
+        <div class="card-title"><span class="card-dot"></span>ThingSpeak Channel</div>
+        <div class="card-desc">Cloud database channel with two fields: Field1 = Heart Rate (BPM), Field2 = SpO₂ (%). Stores timestamped records.</div>
+        <span class="tag tag-cyan">Channel ID</span>
+        <span class="tag tag-cyan">API Key</span>
+      </div>
+      <div class="card">
+        <div class="card-title"><span class="card-dot"></span>Read API (GET)</div>
+        <div class="card-desc">Your Python backend fetches data using: <code>GET https://api.thingspeak.com/channels/{id}/feeds.json?results=100</code></div>
+        <span class="tag tag-cyan">JSON Response</span>
+        <span class="tag tag-cyan">Timestamp</span>
+      </div>
+      <div class="card">
+        <div class="card-title"><span class="card-dot"></span>MATLAB Analysis</div>
+        <div class="card-desc">Optional: ThingSpeak built-in MATLAB can do basic preprocessing or alerting. Not mandatory if Python handles all ML.</div>
+        <span class="tag tag-cyan">Optional</span>
+      </div>
+    </div>
+    <div class="desc-block">
+      🔑 <strong>How Python reads ThingSpeak:</strong><br>
+      <code>import requests</code><br>
+      <code>url = "https://api.thingspeak.com/channels/CHANNEL_ID/feeds.json?api_key=READ_API_KEY&results=500"</code><br>
+      <code>data = requests.get(url).json()["feeds"]  # → list of {created_at, field1, field2}</code>
+    </div>
+  </div>
+
+  <div class="arrow-down"><div class="line"></div><div class="arrow-label">GET feeds.json (requests / pandas)</div><div class="line"></div><div class="tip"></div></div>
+  <div class="flow-banner"><div class="flow-dot"></div> REAL-TIME POLLING — EVERY 15s VIA st.rerun() <div class="flow-dot"></div></div>
+  <div class="arrow-down"><div class="line"></div><div class="tip"></div></div>
+
+  <!-- ═══════════════ LAYER 3: ML BACKEND ═══════════════ -->
+  <div class="layer ml">
+    <div class="layer-header">
+      <div class="layer-icon">🧠</div>
+      <div>
+        <div class="layer-title">Layer 3 — ML Backend (Python)</div>
+        <div style="font-family:'Space Mono',monospace;font-size:11px;color:var(--muted)">Data preprocessing + model inference engine</div>
+      </div>
+      <div class="layer-num">03 / 05</div>
+    </div>
+
+    <!-- Pipeline -->
+    <div class="pipeline">
+      <div class="pipe-step"><strong>Fetch Data</strong>ThingSpeak API<br>→ DataFrame</div>
+      <div class="pipe-arrow">→</div>
+      <div class="pipe-step"><strong>Preprocess</strong>Normalize<br>Handle NaN</div>
+      <div class="pipe-arrow">→</div>
+      <div class="pipe-step"><strong>Feature Eng.</strong>Rolling avg<br>Trend delta</div>
+      <div class="pipe-arrow">→</div>
+      <div class="pipe-step"><strong>ML Predict</strong>KNN / LR /<br>Proto Net</div>
+      <div class="pipe-arrow">→</div>
+      <div class="pipe-step"><strong>Output</strong>Label +<br>Confidence %</div>
+    </div>
+
+    <table class="ml-table">
+      <tr>
+        <th>Model</th><th>Type</th><th>Strength</th><th>Output Labels</th><th>Library</th>
+      </tr>
+      <tr>
+        <td>K-Nearest Neighbors</td>
+        <td><span class="tag tag-purple">Instance-based</span></td>
+        <td>High accuracy on small datasets, easy tuning</td>
+        <td>Normal / Tachycardia / Bradycardia / Hypoxia</td>
+        <td>scikit-learn</td>
+      </tr>
+      <tr>
+        <td>Logistic Regression</td>
+        <td><span class="tag tag-purple">Probabilistic</span></td>
+        <td>Stable, interpretable confidence scores</td>
+        <td>Normal / Abnormal + probability %</td>
+        <td>scikit-learn</td>
+      </tr>
+      <tr>
+        <td>Prototype Network</td>
+        <td><span class="tag tag-purple">Few-shot DL</span></td>
+        <td>Fast computation, works with few samples</td>
+        <td>Class embedding distance</td>
+        <td>PyTorch / TensorFlow</td>
+      </tr>
+    </table>
+    <div class="desc-block">
+      📁 <strong>Model Files:</strong> Trained models saved as <code>knn_model.pkl</code>, <code>lr_model.pkl</code>, <code>proto_model.pt</code><br>
+      🔄 <strong>Retraining:</strong> Periodic batch retraining triggered from Streamlit UI or via scheduler (APScheduler)<br>
+      📊 <strong>Evaluation:</strong> Accuracy score, Confusion Matrix, Cross-validation (K-Fold = 5)
+    </div>
+  </div>
+
+  <div class="arrow-down"><div class="line"></div><div class="arrow-label">Predictions + DataFrames passed to Streamlit session state</div><div class="line"></div><div class="tip"></div></div>
+
+  <!-- ═══════════════ LAYER 4: STREAMLIT ═══════════════ -->
+  <div class="layer app">
+    <div class="layer-header">
+      <div class="layer-icon">🖥️</div>
+      <div>
+        <div class="layer-title">Layer 4 — Streamlit Dashboard (Frontend)</div>
+        <div style="font-family:'Space Mono',monospace;font-size:11px;color:var(--muted)">Interactive web app — all-in-one UI + backend in Python</div>
+      </div>
+      <div class="layer-num">04 / 05</div>
+    </div>
+
+    <div class="streamlit-box">
+      <h4>Streamlit Pages / Components</h4>
+      <div class="st-row">
+        <div class="st-comp"><strong>📡 Live Monitor</strong>Real-time BPM + SpO₂ gauge charts, auto-refresh with st.rerun()</div>
+        <div class="st-comp"><strong>📈 History Graph</strong>Plotly line charts, date range filter, download CSV</div>
+        <div class="st-comp"><strong>🤖 ML Prediction</strong>Select model, run prediction, show label + confidence bar</div>
+        <div class="st-comp"><strong>📊 Model Report</strong>Confusion matrix heatmap, accuracy comparison bar chart</div>
+        <div class="st-comp"><strong>⚙️ Settings</strong>ThingSpeak API key input, polling interval, alert thresholds</div>
+        <div class="st-comp"><strong>🔔 Alerts Panel</strong>st.warning / st.error banners for abnormal readings</div>
+      </div>
+    </div>
+
+    <div class="desc-block">
+      🚀 <strong>Key Streamlit Features Used:</strong><br>
+      • <code>st.metric()</code> — Live BPM and SpO₂ big number display<br>
+      • <code>st.plotly_chart()</code> — Interactive historical + real-time line charts<br>
+      • <code>st.selectbox()</code> — Choose ML model (KNN / LR / Proto Net)<br>
+      • <code>st.cache_data(ttl=15)</code> — Cache ThingSpeak API calls for 15 seconds<br>
+      • <code>st.rerun()</code> + <code>time.sleep(15)</code> — Auto-refresh live data loop<br>
+      • <code>st.sidebar</code> — Navigation, patient info, alert config
+    </div>
+  </div>
+
+  <div class="arrow-down"><div class="line"></div><div class="arrow-label">Browser renders Streamlit app (localhost:8501)</div><div class="line"></div><div class="tip"></div></div>
+
+  <!-- ═══════════════ LAYER 5: OUTPUT ═══════════════ -->
+  <div class="layer output">
+    <div class="layer-header">
+      <div class="layer-icon">📋</div>
+      <div>
+        <div class="layer-title">Layer 5 — Output & Alerts</div>
+        <div style="font-family:'Space Mono',monospace;font-size:11px;color:var(--muted)">Health classification results delivered to user</div>
+      </div>
+      <div class="layer-num">05 / 05</div>
+    </div>
+    <div class="cards">
+      <div class="card">
+        <div class="card-title"><span class="card-dot"></span>Health Status Label</div>
+        <div class="card-desc">Classification result: Normal ✅ / Tachycardia ⚡ / Bradycardia 🔵 / Hypoxia 🔴 / Critical ⛔ with confidence %.</div>
+        <span class="tag tag-yellow">ML Output</span>
+      </div>
+      <div class="card">
+        <div class="card-title"><span class="card-dot"></span>Visual Alerts</div>
+        <div class="card-desc">st.warning / st.error in Streamlit. Optional: Email alert via smtplib or Telegram bot when threshold crossed.</div>
+        <span class="tag tag-yellow">Real-time Alert</span>
+      </div>
+      <div class="card">
+        <div class="card-title"><span class="card-dot"></span>Data Export</div>
+        <div class="card-desc">Download full dataset as CSV, model comparison report as PDF. Historical trend accessible by date range.</div>
+        <span class="tag tag-yellow">CSV / PDF</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Tech stack footer -->
+  <div style="margin-top:40px;text-align:center;border-top:1px solid var(--border);padding-top:30px;">
+    <div style="font-family:'Space Mono',monospace;font-size:10px;color:var(--muted);letter-spacing:2px;margin-bottom:16px">TECH STACK</div>
+    <div style="display:flex;flex-wrap:wrap;justify-content:center;gap:10px;">
+      <span class="tag tag-orange">Arduino Mega 2560</span>
+      <span class="tag tag-orange">MAX30102</span>
+      <span class="tag tag-orange">ESP8266 WiFi</span>
+      <span class="tag tag-cyan">ThingSpeak Cloud</span>
+      <span class="tag tag-cyan">REST API (GET/POST)</span>
+      <span class="tag tag-purple">scikit-learn</span>
+      <span class="tag tag-purple">PyTorch</span>
+      <span class="tag tag-purple">pandas / numpy</span>
+      <span class="tag tag-green">Streamlit</span>
+      <span class="tag tag-green">Plotly</span>
+      <span class="tag tag-green">Python 3.10+</span>
+      <span class="tag tag-yellow">smtplib / Telegram Bot</span>
+    </div>
+  </div>
+
+</div>
+</body>
+</html>
